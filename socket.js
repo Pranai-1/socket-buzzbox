@@ -2,15 +2,18 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const socketIO = require("socket.io");
+const { PrismaClient } = require("@prisma/client");
 
 const app = express();
 const port = 4000;
 const server = http.createServer(app);
 const io = socketIO(server);
-app.use(cors({
-  origin: 'https://buzz-box.vercel.app/', 
-  optionsSuccessStatus: 200, 
-}));
+// app.use(cors({
+//   origin: 'https://buzz-box.vercel.app/', 
+//   optionsSuccessStatus: 200, 
+// }));
+
+app.use(cors())
 
 let users = [];
 let onlineUsers=[]
@@ -18,35 +21,76 @@ let onlineUsers=[]
 io.on("connection", (socket) => {
   console.log(`connection established with id-${socket.id}`);
 
-  socket.on("addNewUser", (userId) => {
-    !onlineUsers.some((user)=>user.userId==userId)&&
-    onlineUsers.push({
-        userId,
-        socketId:socket.id
-    })
-    console.log(userId);
-    console.log(`You have joined with ${userId}`);
-    console.log(onlineUsers)
-    socket.emit("getOnlineUsers",onlineUsers)
+  socket.on("addNewUser", async (userId) => {
+    const prisma=new PrismaClient()
+    try {
+      const present = await prisma.onlineUsers.findFirst({
+        where: {
+          userId,
+         
+        },
+      });
   
+      if (present) {
+        // If the user is already present, update the socketId
+        await prisma.onlineUsers.update({
+          where: {
+            id: present.id, // Use the id as the unique identifier
+          },
+          data: {
+            socketId: socket.id,
+          },
+        });
+      } else {
+        // If the user is not present, create a new record
+        await prisma.onlineUsers.create({
+          data: {
+            userId,
+            socketId: socket.id,
+          },
+        });
+      }
+  
+      const onlineUsers = await prisma.onlineUsers.findMany({});
+      console.log(onlineUsers);
+      socket.emit("getOnlineUsers", onlineUsers);
+    } catch (error) {
+      console.error(error);
+    }
   });
+  
 
-  socket.on("sendMessage",(message)=>{
+  socket.on("sendMessage",async(message)=>{
+    const prisma=new PrismaClient()
     console.log(message)
     console.log(message.userIdOfOpenedChat+" ")
     console.log(onlineUsers)
-    const user=onlineUsers.find((user)=>user.userId==message.userIdOfOpenedChat)
-    console.log(user)
+    const user = await prisma.onlineUsers.findFirst({
+      where: {
+        userId:message.userIdOfOpenedChat,
+       
+      },
+    });
+
+    // const user=onlineUsers.find((user)=>user.userId==message.userIdOfOpenedChat)
+    // console.log(user)
     if(user){
         socket.to(user.socketId).emit("getMessage",message.messagetosend)
     }
   })
 
-  socket.on("disconnect",()=>{
-    onlineUsers=onlineUsers.filter((user)=>user.socketId!==socket.id)
-    socket.emit("getOnlineUsers",onlineUsers)
-  })
+  socket.on("disconnect", async () => {
+    const prisma=new PrismaClient()
+    await prisma.onlineUsers.deleteMany({
+      where: {
+        socketId: socket.id,
+      },
+    });
 
+    // Get the updated list of online users
+    const onlineUsers = await prisma.onlineUsers.findMany();
+    socket.emit("getOnlineUsers", onlineUsers);
+  });
 });
 
 app.get("/", (req, res) => {
@@ -56,8 +100,6 @@ app.get("/", (req, res) => {
 server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
-
-
 
 // Read about the diff between http and express servers with code
 
