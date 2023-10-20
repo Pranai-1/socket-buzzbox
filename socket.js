@@ -7,7 +7,10 @@ const app = express();
 const port = 4000;
 const server = http.createServer(app);
 const io = socketIO(server);
-app.use(cors());
+app.use(cors({
+  origin: 'https://buzz-box.vercel.app/', 
+  optionsSuccessStatus: 200, 
+}));
 
 let users = [];
 let onlineUsers=[]
