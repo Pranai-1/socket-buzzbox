@@ -9,7 +9,7 @@ const port = 4000;
 const server = http.createServer(app);
 const io = socketIO(server);
 app.use(cors({
-  origin: 'https://buzz-box.vercel.app/', 
+  origin: 'https://buzz-box.vercel.app/Home', 
   optionsSuccessStatus: 200, 
 }));
 
