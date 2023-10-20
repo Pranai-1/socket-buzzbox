@@ -13,7 +13,7 @@ app.use(cors({
   optionsSuccessStatus: 200, 
 }));
 
-// app.use(cors())
+const prisma = new PrismaClient();
 
 let users = [];
 let onlineUsers=[]
@@ -22,15 +22,13 @@ io.on("connection", (socket) => {
   console.log(`connection established with id-${socket.id}`);
 
   socket.on("addNewUser", async (userId) => {
-    const prisma=new PrismaClient()
     try {
       const present = await prisma.onlineUsers.findFirst({
         where: {
           userId,
-         
         },
       });
-  
+
       if (present) {
         // If the user is already present, update the socketId
         await prisma.onlineUsers.update({
@@ -50,37 +48,32 @@ io.on("connection", (socket) => {
           },
         });
       }
-  
-      const onlineUsers = await prisma.onlineUsers.findMany({});
-      console.log(onlineUsers);
-      socket.emit("getOnlineUsers", onlineUsers);
+
+      const updatedOnlineUsers = await prisma.onlineUsers.findMany({});
+      console.log(updatedOnlineUsers);
+      socket.emit("getOnlineUsers", updatedOnlineUsers);
     } catch (error) {
       console.error(error);
     }
   });
-  
 
   socket.on("sendMessage",async(message)=>{
-    const prisma=new PrismaClient()
     console.log(message)
     console.log(message.userIdOfOpenedChat+" ")
     console.log(onlineUsers)
+
     const user = await prisma.onlineUsers.findFirst({
       where: {
-        userId:message.userIdOfOpenedChat,
-       
+        userId: message.userIdOfOpenedChat,
       },
     });
 
-    // const user=onlineUsers.find((user)=>user.userId==message.userIdOfOpenedChat)
-    // console.log(user)
     if(user){
-        socket.to(user.socketId).emit("getMessage",message.messagetosend)
+        socket.to(user.socketId).emit("getMessage", message.messagetosend);
     }
-  })
+  });
 
   socket.on("disconnect", async () => {
-    const prisma=new PrismaClient()
     await prisma.onlineUsers.deleteMany({
       where: {
         socketId: socket.id,
@@ -88,8 +81,8 @@ io.on("connection", (socket) => {
     });
 
     // Get the updated list of online users
-    const onlineUsers = await prisma.onlineUsers.findMany();
-    socket.emit("getOnlineUsers", onlineUsers);
+    const updatedOnlineUsers = await prisma.onlineUsers.findMany();
+    socket.emit("getOnlineUsers", updatedOnlineUsers);
   });
 });
 
@@ -100,6 +93,7 @@ app.get("/", (req, res) => {
 server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+
 
 // Read about the diff between http and express servers with code
 
