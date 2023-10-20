@@ -7,16 +7,22 @@ const { PrismaClient } = require("@prisma/client");
 const app = express();
 const port = 4000;
 const server = http.createServer(app);
-const io = socketIO(server);
-app.use(cors({
-  origin: 'https://buzz-box.vercel.app/Home', 
-  optionsSuccessStatus: 200, 
-}));
-
 const prisma = new PrismaClient();
 
+app.use(cors({
+  origin: 'https://buzz-box.vercel.app',
+  optionsSuccessStatus: 200,
+}));
+
+const io = socketIO(server, {
+  cors: {
+    origin: "https://buzz-box.vercel.app",
+    methods: ["GET", "POST"],
+  },
+});
+
 let users = [];
-let onlineUsers=[]
+let onlineUsers = [];
 
 io.on("connection", (socket) => {
   console.log(`connection established with id-${socket.id}`);
@@ -57,10 +63,10 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("sendMessage",async(message)=>{
-    console.log(message)
-    console.log(message.userIdOfOpenedChat+" ")
-    console.log(onlineUsers)
+  socket.on("sendMessage", async (message) => {
+    console.log(message);
+    console.log(message.userIdOfOpenedChat + " ");
+    console.log(onlineUsers);
 
     const user = await prisma.onlineUsers.findFirst({
       where: {
@@ -68,8 +74,8 @@ io.on("connection", (socket) => {
       },
     });
 
-    if(user){
-        socket.to(user.socketId).emit("getMessage", message.messagetosend);
+    if (user) {
+      socket.to(user.socketId).emit("getMessage", message.messagetosend);
     }
   });
 
@@ -93,6 +99,7 @@ app.get("/", (req, res) => {
 server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+;
 
 
 // Read about the diff between http and express servers with code
