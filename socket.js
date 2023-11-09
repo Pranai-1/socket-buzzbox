@@ -2,18 +2,21 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const socketIO = require("socket.io");
-const { PrismaClient } = require("@prisma/client");
+
 
 const app = express();
 const port = 4000;
 const server = http.createServer(app);
-const prisma = new PrismaClient();
+
 
 app.use(cors({
   origin: 'https://buzz-box.vercel.app',
   optionsSuccessStatus: 200,
 }));
 
+
+// app.use(cors())
+// const io=socketIO(server)
 const io = socketIO(server, {
   cors: {
     origin: "https://buzz-box.vercel.app",
@@ -21,79 +24,54 @@ const io = socketIO(server, {
   },
 });
 
-let users = [];
-let onlineUsers = [];
+
+let users = {}; 
 
 io.on("connection", (socket) => {
-  console.log(`connection established with id-${socket.id}`);
-
-  socket.on("addNewUser", async (userId) => {
-    try {
-      const present = await prisma.onlineUsers.findFirst({
-        where: {
-          userId,
-        },
-      });
-
-      if (present) {
-        // If the user is already present, update the socketId
-        await prisma.onlineUsers.update({
-          where: {
-            id: present.id, // Use the id as the unique identifier
-          },
-          data: {
-            socketId: socket.id,
-          },
-        });
-      } else {
-        // If the user is not present, create a new record
-        await prisma.onlineUsers.create({
-          data: {
-            userId,
-            socketId: socket.id,
-          },
-        });
+  console.log(`Connection established with id-${socket.id}`);
+  socket.on("addNewUser", (userId) => {
+    if (users[userId]) {
+      users[userId].socketId = socket.id;
+    } else {
+      users[userId] = { userId, socketId: socket.id };
+    }
+    const onlineUsers = Object.values(users);
+    if (onlineUsers) {
+      for(let arr of onlineUsers ){
+        io.to(arr.socketId).emit("getOnlineUsers", onlineUsers);
+        console.log(arr)
       }
-
-      const updatedOnlineUsers = await prisma.onlineUsers.findMany({});
-      console.log(updatedOnlineUsers);
-      socket.emit("getOnlineUsers", updatedOnlineUsers);
-    } catch (error) {
-      console.error(error);
+      
     }
+
   });
 
-  socket.on("sendMessage", async (message) => {
-    console.log(message);
-    console.log(message.userIdOfOpenedChat + " ");
-    console.log(onlineUsers);
-
-    const user = await prisma.onlineUsers.findFirst({
-      where: {
-        userId: message.userIdOfOpenedChat,
-      },
-    });
-
+  socket.on("sendMessage", (message) => {
+    const user = users[message.userIdOfOpenedChat];
     if (user) {
-      socket.to(user.socketId).emit("getMessage", message.messagetosend);
+      io.to(user.socketId).emit("getMessage", message.messagetosend);
     }
   });
 
-  socket.on("disconnect", async () => {
-    await prisma.onlineUsers.deleteMany({
-      where: {
-        socketId: socket.id,
-      },
-    });
+  socket.on("disconnect", () => {
+    const disconnectedUser = Object.values(users).find((user) => user.socketId === socket.id);
+    if (disconnectedUser) {
+      delete users[disconnectedUser.userId];
+    }
 
-    // Get the updated list of online users
-    const updatedOnlineUsers = await prisma.onlineUsers.findMany();
-    socket.emit("getOnlineUsers", updatedOnlineUsers);
+    const onlineUsers = Object.values(users);
+    if (onlineUsers) {
+      for(let arr of onlineUsers ){
+        io.to(arr.socketId).emit("getOnlineUsers", onlineUsers);
+        console.log(arr)
+      }
+      
+    }
   });
 });
 
 app.get("/", (req, res) => {
-  res.send("Starting");
+  res.json({onlineUsers});
 });
 
 server.listen(port, () => {
