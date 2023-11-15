@@ -26,7 +26,7 @@ const io = socketIO(server, {
 
 
 let users = {}; 
-
+let rooms={}
 io.on("connection", (socket) => {
   console.log(`Connection established with id-${socket.id}`);
   socket.on("addNewUser", (userId) => {
@@ -53,19 +53,36 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("sendRoomMessage", (message) => {
-    const obj=message.usersOfRoom
-   const sender=message.messagetosend.senderId
-    const receivers=obj.filter((x)=>x.userId!=sender)
-    const onlineReceivers = receivers.filter((x) => {
-      return users[x.userId] !== undefined;
-  });
-  for(const user of onlineReceivers){
-    const userToSend = users[user.userId];
-    if (userToSend) {
-      io.to(userToSend.socketId).emit("getRoomMessage", message.messagetosend);
+  socket.on("AddUserToRoom",(data)=>{
+    if (!rooms[data.roomId]) {
+      rooms[data.roomId] = [data.id];
+    } else {
+      const userIds = rooms[data.roomId];
+      if (userIds && userIds.includes(data.id)) {
+        return;
+      }
+      
+      rooms[data.roomId] = [...userIds, data.id];
     }
-  }
+    console.log(rooms)
+  })
+  socket.on("sendRoomMessage", (message) => {
+    const roomId=message.roomId
+   const sender=message.messagetosend.senderId
+   let roomUsers=rooms[roomId]
+   if(roomUsers){
+    const receivers=roomUsers.filter((id)=>id!=sender)
+    if(receivers){
+      for(const id of receivers){
+        const userToSend = users[id];
+        if (userToSend) {
+          io.to(userToSend.socketId).emit("getRoomMessage", message.messagetosend);
+        }
+      }
+    }
+   }
+   
+ 
   });
 
   socket.on("disconnect", () => {
