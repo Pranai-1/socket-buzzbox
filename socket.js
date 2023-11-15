@@ -53,6 +53,21 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("sendRoomMessage", (message) => {
+    const obj=message.usersOfRoom
+   const sender=message.messagetosend.senderId
+    const receivers=obj.filter((x)=>x.userId!=sender)
+    const onlineReceivers = receivers.filter((x) => {
+      return users[x.userId] !== undefined;
+  });
+  for(const user of onlineReceivers){
+    const userToSend = users[user.userId];
+    if (userToSend) {
+      io.to(userToSend.socketId).emit("getRoomMessage", message.messagetosend);
+    }
+  }
+  });
+
   socket.on("disconnect", () => {
     const disconnectedUser = Object.values(users).find((user) => user.socketId === socket.id);
     if (disconnectedUser) {
