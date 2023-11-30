@@ -24,7 +24,6 @@ const io = socketIO(server, {
   },
 });
 
-
 let users = {}; 
 let rooms={}
 io.on("connection", (socket) => {
